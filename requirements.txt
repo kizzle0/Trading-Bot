@@ -1,6 +1,6 @@
+streamlit>=1.28.0
 pandas>=2.2.0
 numpy>=1.26.0
-backtesting>=0.3.3
 yfinance>=0.2.40
 ccxt>=4.0.0
 oandapyV20>=0.7.2
@@ -8,7 +8,7 @@ alpaca-trade-api>=3.0.0
 python-dotenv>=1.0.1
 loguru>=0.7.2
 pydantic>=2.7.0
-websockets>=13.0
-streamlit>=1.28.0
 matplotlib>=3.7.0
 plotly>=5.17.0
+backtesting>=0.3.3
+websockets>=13.0
