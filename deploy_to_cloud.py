@@ -21,7 +21,7 @@ pydantic>=2.7.0
 matplotlib>=3.7.0
 plotly>=5.17.0
 backtesting>=0.3.3
-websockets>=13.0
+websockets>=9.0,<11
 """
     
     with open('requirements.txt', 'w') as f:
