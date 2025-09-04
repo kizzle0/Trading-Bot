@@ -540,8 +540,35 @@ def backtest_tab():
                     st.success("✅ Backtest completed!")
                     
                 except Exception as e:
-                    st.error(f"❌ Backtest failed: {e}")
-                    add_log(f"Backtest failed: {e}", "ERROR")
+                    error_msg = str(e)
+                    st.error(f"❌ Backtest failed: {error_msg}")
+                    add_log(f"Backtest failed: {error_msg}", "ERROR")
+                    
+                    # Provide helpful suggestions
+                    with st.expander("🔧 Troubleshooting Tips"):
+                        st.markdown("""
+                        **Common Solutions:**
+                        
+                        1. **Try a different symbol format:**
+                           - Forex: `EURUSD=X` or `EUR_USD`
+                           - Crypto: `BTC-USD` or `BTC/USDT`
+                           - Stocks: `AAPL` or `MSFT`
+                        
+                        2. **Try a shorter time period:**
+                           - Use `6mo` instead of `1y`
+                           - Use `3mo` instead of `6mo`
+                        
+                        3. **Try a different interval:**
+                           - Use `1d` instead of `1h`
+                           - Use `1h` instead of `1m`
+                        
+                        4. **Check if the symbol exists:**
+                           - Verify the symbol is correct
+                           - Try a well-known symbol like `AAPL` or `EURUSD=X`
+                        
+                        5. **Try a different broker:**
+                           - Switch between Yahoo Finance, OANDA, CCXT, or Alpaca
+                        """)
     
     with col2:
         st.subheader("📈 Backtest Results")

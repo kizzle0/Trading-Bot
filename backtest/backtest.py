@@ -57,47 +57,85 @@ class SmaAtrStrategy(Strategy):
 
 
 def fetch_ohlc_yahoo(symbol: str, period: str = "1y", interval: str = "1h") -> pd.DataFrame:
-    """Fetch OHLC data from Yahoo Finance"""
-    # Try standard download first
-    df = yf.download(
-        symbol,
-        period=period,
-        interval=interval,
-        auto_adjust=False,
-        progress=False,
-        group_by="column",
-    )
-
-    # If nothing came back, fall back to daily data
-    if df is None or df.empty:
-        df = yf.download(symbol, period="1y", interval="1d", auto_adjust=False, progress=False, group_by="column")
-
-    # If still MultiIndex, try to select the symbol level or flatten to last level
-    if isinstance(df.columns, pd.MultiIndex):
-        # Try to get the first level (column names) instead of symbol level
-        df.columns = df.columns.get_level_values(0)
-
-    # Normalize column names to Title case (Open, High, Low, Close, Volume)
-    df.columns = [str(c).strip().title() for c in df.columns]
-
-    # Create Volume if missing (common for FX)
-    for needed in ["Open", "High", "Low", "Close", "Volume"]:
-        if needed not in df.columns:
-            if needed == "Volume":
-                df["Volume"] = 0
-            else:
-                # Sometimes Yahoo returns 'Adj Close' but not 'Close' for weird combos
-                # If 'Adj Close' exists and 'Close' missing, use it
-                if needed == "Close" and "Adj Close" in df.columns:
-                    df["Close"] = df["Adj Close"]
-                else:
-                    # Last resort: duplicate Close into missing O/H/L if truly absent (rare)
-                    if "Close" in df.columns:
-                        df[needed] = df["Close"]
-                    else:
-                        raise ValueError(f"Missing required column even after fallback: {needed}")
+    """Fetch OHLC data from Yahoo Finance with robust error handling"""
+    print(f"  📊 Fetching {symbol} from Yahoo Finance ({period}, {interval})")
     
-    return df
+    try:
+        # Try standard download first
+        df = yf.download(
+            symbol,
+            period=period,
+            interval=interval,
+            auto_adjust=False,
+            progress=False,
+            group_by="column",
+        )
+
+        # If nothing came back, try different approaches
+        if df is None or df.empty:
+            print(f"  ⚠️ No data for {symbol} with {interval}, trying daily data...")
+            df = yf.download(symbol, period=period, interval="1d", auto_adjust=False, progress=False, group_by="column")
+        
+        # If still empty, try with a shorter period
+        if df is None or df.empty:
+            print(f"  ⚠️ No data for {symbol} with {period}, trying 6 months...")
+            df = yf.download(symbol, period="6mo", interval="1d", auto_adjust=False, progress=False, group_by="column")
+        
+        # If still empty, try with 3 months
+        if df is None or df.empty:
+            print(f"  ⚠️ No data for {symbol} with 6mo, trying 3 months...")
+            df = yf.download(symbol, period="3mo", interval="1d", auto_adjust=False, progress=False, group_by="column")
+
+        # Check if we got any data
+        if df is None or df.empty:
+            print(f"  ❌ No data found for {symbol}")
+            return pd.DataFrame()
+
+        # If still MultiIndex, try to select the symbol level or flatten to last level
+        if isinstance(df.columns, pd.MultiIndex):
+            # Try to get the first level (column names) instead of symbol level
+            df.columns = df.columns.get_level_values(0)
+
+        # Normalize column names to Title case (Open, High, Low, Close, Volume)
+        df.columns = [str(c).strip().title() for c in df.columns]
+
+        # Create Volume if missing (common for FX)
+        for needed in ["Open", "High", "Low", "Close", "Volume"]:
+            if needed not in df.columns:
+                if needed == "Volume":
+                    df["Volume"] = 0
+                else:
+                    # Sometimes Yahoo returns 'Adj Close' but not 'Close' for weird combos
+                    # If 'Adj Close' exists and 'Close' missing, use it
+                    if needed == "Close" and "Adj Close" in df.columns:
+                        df["Close"] = df["Adj Close"]
+                    else:
+                        # Last resort: duplicate Close into missing O/H/L if truly absent (rare)
+                        if "Close" in df.columns:
+                            df[needed] = df["Close"]
+                        else:
+                            print(f"  ❌ Missing required column: {needed}")
+                            return pd.DataFrame()
+        
+        # Validate we have the required columns
+        required_cols = ["Open", "High", "Low", "Close"]
+        if not all(col in df.columns for col in required_cols):
+            print(f"  ❌ Missing required columns. Available: {list(df.columns)}")
+            return pd.DataFrame()
+        
+        # Remove any rows with NaN values
+        df = df.dropna()
+        
+        if len(df) == 0:
+            print(f"  ❌ No valid data after cleaning NaN values")
+            return pd.DataFrame()
+        
+        print(f"  ✅ Successfully fetched {len(df)} data points")
+        return df
+        
+    except Exception as e:
+        print(f"  ❌ Yahoo Finance error for {symbol}: {e}")
+        return pd.DataFrame()
 
 
 def fetch_ohlc_ccxt(symbol: str, period: str = "1y", interval: str = "1h") -> pd.DataFrame:
@@ -157,15 +195,85 @@ def fetch_ohlc_alpaca(symbol: str, period: str = "1y", interval: str = "1h") -> 
 
 
 def fetch_ohlc(symbol: str, broker: str = "yahoo", period: str = "1y", interval: str = "1h") -> pd.DataFrame:
-    """Fetch OHLC data based on broker type"""
-    if broker == "ccxt":
-        return fetch_ohlc_ccxt(symbol, period, interval)
-    elif broker == "oanda":
-        return fetch_ohlc_oanda(symbol, period, interval)
+    """Fetch OHLC data based on broker type with fallbacks"""
+    print(f"Fetching data for {symbol} using {broker} broker...")
+    
+    # Try the specified broker first
+    try:
+        if broker == "ccxt":
+            df = fetch_ohlc_ccxt(symbol, period, interval)
+        elif broker == "oanda":
+            df = fetch_ohlc_oanda(symbol, period, interval)
+        elif broker == "alpaca":
+            df = fetch_ohlc_alpaca(symbol, period, interval)
+        else:  # yahoo or default
+            df = fetch_ohlc_yahoo(symbol, period, interval)
+        
+        # Check if we got valid data
+        if df is not None and not df.empty and len(df) > 10:
+            print(f"✅ Successfully fetched {len(df)} data points from {broker}")
+            return df
+        else:
+            print(f"⚠️ {broker} returned empty or insufficient data, trying fallbacks...")
+    except Exception as e:
+        print(f"❌ {broker} failed: {e}, trying fallbacks...")
+    
+    # Fallback to Yahoo Finance with different symbol formats
+    fallback_symbols = []
+    
+    if broker == "oanda" and "_" in symbol:
+        # Try different OANDA to Yahoo conversions
+        fallback_symbols = [
+            symbol.replace("_", "") + "=X",  # EUR_USD -> EURUSD=X
+            symbol.replace("_", "/") + "=X", # EUR_USD -> EUR/USD=X
+            symbol.replace("_", ""),         # EUR_USD -> EURUSD
+        ]
+    elif broker == "ccxt" and "/" in symbol:
+        # Try different crypto formats
+        fallback_symbols = [
+            symbol.replace("/", "-"),       # BTC/USDT -> BTC-USDT
+            symbol.replace("/", ""),        # BTC/USDT -> BTCUSDT
+            symbol + "-USD",                # BTC/USDT -> BTC/USDT-USD
+        ]
     elif broker == "alpaca":
-        return fetch_ohlc_alpaca(symbol, period, interval)
-    else:  # yahoo or default
-        return fetch_ohlc_yahoo(symbol, period, interval)
+        # Try different stock formats
+        fallback_symbols = [
+            symbol,                         # AAPL -> AAPL
+            symbol + ".TO",                 # AAPL -> AAPL.TO (Toronto)
+            symbol + ".L",                  # AAPL -> AAPL.L (London)
+        ]
+    else:
+        # For yahoo or unknown brokers, try the original symbol
+        fallback_symbols = [symbol]
+    
+    # Try each fallback symbol
+    for fallback_symbol in fallback_symbols:
+        try:
+            print(f"🔄 Trying fallback symbol: {fallback_symbol}")
+            df = fetch_ohlc_yahoo(fallback_symbol, period, interval)
+            
+            if df is not None and not df.empty and len(df) > 10:
+                print(f"✅ Successfully fetched {len(df)} data points using fallback: {fallback_symbol}")
+                return df
+            else:
+                print(f"⚠️ Fallback {fallback_symbol} returned empty data")
+        except Exception as e:
+            print(f"❌ Fallback {fallback_symbol} failed: {e}")
+    
+    # If all fallbacks failed, raise an error with helpful message
+    raise ValueError(f"""
+    ❌ Could not fetch data for symbol '{symbol}' with broker '{broker}'.
+    
+    Troubleshooting:
+    1. Check if the symbol exists and is valid
+    2. Try a different time period (e.g., '6mo' instead of '1y')
+    3. Try a different interval (e.g., '1d' instead of '1h')
+    4. For forex: Use format like 'EURUSD=X' or 'EUR_USD'
+    5. For crypto: Use format like 'BTC-USD' or 'BTC/USDT'
+    6. For stocks: Use format like 'AAPL' or 'MSFT'
+    
+    Tried fallback symbols: {fallback_symbols}
+    """)
 
 
 def run_backtest(
