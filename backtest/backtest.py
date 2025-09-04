@@ -6,6 +6,20 @@ from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
 import yfinance as yf
 from typing import Dict, Any
+from datetime import datetime, timedelta
+
+# Optional imports
+try:
+    import ccxt
+    CCXT_AVAILABLE = True
+except ImportError:
+    CCXT_AVAILABLE = False
+
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
 
 from strategies.sma_atr import sma, atr
 
@@ -42,7 +56,7 @@ class SmaAtrStrategy(Strategy):
                 self.position.close()
 
 
-def fetch_ohlc(symbol: str, period: str = "1y", interval: str = "1h") -> pd.DataFrame:
+def fetch_ohlc_yahoo(symbol: str, period: str = "1y", interval: str = "1h") -> pd.DataFrame:
     """Fetch OHLC data from Yahoo Finance"""
     # Try standard download first
     df = yf.download(
@@ -86,8 +100,77 @@ def fetch_ohlc(symbol: str, period: str = "1y", interval: str = "1h") -> pd.Data
     return df
 
 
+def fetch_ohlc_ccxt(symbol: str, period: str = "1y", interval: str = "1h") -> pd.DataFrame:
+    """Fetch OHLC data from CCXT exchange (crypto)"""
+    if not CCXT_AVAILABLE:
+        print("CCXT not available, falling back to Yahoo Finance")
+        return fetch_ohlc_yahoo(symbol, period, interval)
+    
+    # Map intervals
+    interval_map = {
+        "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
+        "1h": "1h", "4h": "4h", "1d": "1d"
+    }
+    
+    # Map periods to days
+    period_map = {
+        "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825
+    }
+    
+    exchange = ccxt.binance()  # Default to Binance
+    timeframe = interval_map.get(interval, "1h")
+    days = period_map.get(period, 365)
+    
+    # Calculate start time
+    since = exchange.milliseconds() - (days * 24 * 60 * 60 * 1000)
+    
+    try:
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=1000)
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+        
+        return df
+        
+    except Exception as e:
+        print(f"CCXT fetch failed: {e}")
+        # Fallback to Yahoo Finance
+        return fetch_ohlc_yahoo(symbol, period, interval)
+
+
+def fetch_ohlc_oanda(symbol: str, period: str = "1y", interval: str = "1h") -> pd.DataFrame:
+    """Fetch OHLC data from OANDA (forex) - using Yahoo Finance as fallback"""
+    # OANDA API requires authentication, so we'll use Yahoo Finance for backtesting
+    # Convert OANDA symbol format to Yahoo format
+    if "_" in symbol:
+        symbol = symbol.replace("_", "") + "=X"
+    
+    return fetch_ohlc_yahoo(symbol, period, interval)
+
+
+def fetch_ohlc_alpaca(symbol: str, period: str = "1y", interval: str = "1h") -> pd.DataFrame:
+    """Fetch OHLC data from Alpaca (stocks) - using Yahoo Finance as fallback"""
+    # Alpaca API requires authentication, so we'll use Yahoo Finance for backtesting
+    return fetch_ohlc_yahoo(symbol, period, interval)
+
+
+def fetch_ohlc(symbol: str, broker: str = "yahoo", period: str = "1y", interval: str = "1h") -> pd.DataFrame:
+    """Fetch OHLC data based on broker type"""
+    if broker == "ccxt":
+        return fetch_ohlc_ccxt(symbol, period, interval)
+    elif broker == "oanda":
+        return fetch_ohlc_oanda(symbol, period, interval)
+    elif broker == "alpaca":
+        return fetch_ohlc_alpaca(symbol, period, interval)
+    else:  # yahoo or default
+        return fetch_ohlc_yahoo(symbol, period, interval)
+
+
 def run_backtest(
     symbol: str,
+    broker: str = "yahoo",
     period: str = "1y",
     interval: str = "1d",
     fast: int = 20,
@@ -100,11 +183,23 @@ def run_backtest(
     """
     Run backtest with given parameters
     
+    Args:
+        symbol: Trading symbol
+        broker: Broker type (yahoo, oanda, ccxt, alpaca)
+        period: Time period for backtest
+        interval: Data interval
+        fast: Fast SMA period
+        slow: Slow SMA period
+        atr_window: ATR window
+        atr_mult: ATR multiplier
+        cash: Starting cash
+        commission: Commission rate
+    
     Returns:
         Dictionary with backtest results
     """
-    # Fetch data
-    df = fetch_ohlc(symbol, period, interval)
+    # Fetch data based on broker
+    df = fetch_ohlc(symbol, broker, period, interval)
     
     # Set strategy parameters
     SmaAtrStrategy.fast = fast

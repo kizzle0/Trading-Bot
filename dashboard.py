@@ -41,7 +41,7 @@ st.markdown("""
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #1f77b4;
+        color: #8B5CF6;
         text-align: center;
         margin-bottom: 2rem;
     }
@@ -49,7 +49,7 @@ st.markdown("""
         background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 0.5rem;
-        border-left: 4px solid #1f77b4;
+        border-left: 4px solid #8B5CF6;
     }
     .success-message {
         background-color: #d4edda;
@@ -390,14 +390,57 @@ def backtest_tab():
     with col1:
         st.subheader("⚙️ Backtest Parameters")
         
-        # Symbol selection
-        if 'selected_instrument' in st.session_state:
-            default_symbol = st.session_state.selected_instrument
-        else:
-            default_symbol = "EURUSD=X"
+        # Broker selection for backtest
+        st.subheader("🏦 Data Source")
+        broker_options = {
+            "Yahoo Finance (Default)": "yahoo",
+            "OANDA (Forex)": "oanda",
+            "CCXT (Crypto)": "ccxt", 
+            "Alpaca (Stocks)": "alpaca"
+        }
+        
+        selected_broker = st.selectbox(
+            "Select Data Source:",
+            options=list(broker_options.keys()),
+            index=0
+        )
+        
+        broker_key = broker_options[selected_broker]
+        
+        # Symbol selection based on broker
+        st.subheader("📊 Symbol Selection")
+        if broker_key == "oanda":
+            forex_pairs = [
+                "EUR_USD", "GBP_USD", "USD_JPY", "USD_CHF", "AUD_USD", "USD_CAD",
+                "NZD_USD", "EUR_GBP", "EUR_JPY", "GBP_JPY", "CHF_JPY", "AUD_JPY"
+            ]
+            symbol = st.selectbox("Select Currency Pair:", options=forex_pairs, index=0)
+            st.info(f"Selected: {symbol}")
             
-        symbol = st.text_input("Symbol:", value=default_symbol, 
-                              help="Examples: EURUSD=X, BTC-USD, AAPL")
+        elif broker_key == "ccxt":
+            crypto_pairs = [
+                "BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "DOT/USDT",
+                "LINK/USDT", "LTC/USDT", "BCH/USDT", "XLM/USDT", "EOS/USDT"
+            ]
+            symbol = st.selectbox("Select Crypto Pair:", options=crypto_pairs, index=0)
+            st.info(f"Selected: {symbol}")
+            
+        elif broker_key == "alpaca":
+            stock_symbols = [
+                "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX",
+                "AMD", "INTC", "CRM", "ADBE", "PYPL", "UBER", "LYFT", "ZOOM"
+            ]
+            symbol = st.selectbox("Select Stock Symbol:", options=stock_symbols, index=0)
+            st.info(f"Selected: {symbol}")
+            
+        else:  # yahoo
+            if 'selected_instrument' in st.session_state:
+                default_symbol = st.session_state.selected_instrument
+            else:
+                default_symbol = "EURUSD=X"
+                
+            symbol = st.text_input("Symbol:", value=default_symbol, 
+                                  help="Examples: EURUSD=X, BTC-USD, AAPL")
         
         # Period and interval
         col_a, col_b = st.columns(2)
@@ -434,10 +477,11 @@ def backtest_tab():
         
         # Run backtest button
         if st.button("🚀 Run Backtest", type="primary", use_container_width=True):
-            with st.spinner("Running backtest..."):
+            with st.spinner(f"Running backtest with {selected_broker}..."):
                 try:
                     result = run_backtest(
                         symbol=symbol,
+                        broker=broker_key,
                         period=period,
                         interval=interval,
                         fast=fast_sma,
@@ -485,7 +529,7 @@ def backtest_tab():
                     y=equity_curve.values,
                     mode='lines',
                     name='Equity',
-                    line=dict(color='#1f77b4', width=2)
+                    line=dict(color='#8B5CF6', width=2)
                 ))
                 fig.update_layout(
                     title="Portfolio Equity Over Time",
@@ -596,7 +640,7 @@ def live_trading_tab():
                     y=equity_df['equity'],
                     mode='lines+markers',
                     name='Equity',
-                    line=dict(color='#2ecc71', width=2)
+                    line=dict(color='#8B5CF6', width=2)
                 ))
                 fig.update_layout(
                     title="Live Equity Curve",
@@ -681,7 +725,7 @@ def main():
     # Header with trading mode indicator
     mode_emoji = "📝" if st.session_state.trading_mode == "paper" else "💰"
     mode_text = "Paper Trading" if st.session_state.trading_mode == "paper" else "Live Trading"
-    mode_color = "#28a745" if st.session_state.trading_mode == "paper" else "#dc3545"
+    mode_color = "#8B5CF6" if st.session_state.trading_mode == "paper" else "#DC2626"
     
     st.markdown(f'''
     <div class="main-header">

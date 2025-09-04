@@ -9,7 +9,10 @@ from backtest.backtest import run_backtest, plot_backtest
 def main():
     parser = argparse.ArgumentParser(description='Run backtest with SMA/ATR strategy')
     parser.add_argument('--symbol', type=str, default='EURUSD=X', 
-                       help='Symbol to backtest (e.g., EURUSD=X, BTC-USD, AAPL)')
+                       help='Symbol to backtest (e.g., EURUSD=X, BTC/USDT, AAPL)')
+    parser.add_argument('--broker', type=str, default='yahoo', 
+                       choices=['yahoo', 'oanda', 'ccxt', 'alpaca'],
+                       help='Broker/data source for backtest')
     parser.add_argument('--period', type=str, default='1y', 
                        help='Period for backtest (e.g., 1y, 2y, 6mo)')
     parser.add_argument('--interval', type=str, default='1d', 
@@ -32,13 +35,14 @@ def main():
     args = parser.parse_args()
     
     print(f"Running backtest for {args.symbol}...")
-    print(f"Period: {args.period}, Interval: {args.interval}")
+    print(f"Broker: {args.broker}, Period: {args.period}, Interval: {args.interval}")
     print(f"Strategy: SMA({args.fast}, {args.slow}) with ATR({args.atr_window}) x {args.atr_mult}")
     print("-" * 50)
     
     # Run backtest
     result = run_backtest(
         symbol=args.symbol,
+        broker=args.broker,
         period=args.period,
         interval=args.interval,
         fast=args.fast,
