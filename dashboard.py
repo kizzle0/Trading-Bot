@@ -18,6 +18,8 @@ from typing import Dict, Any, Optional
 
 # Import our trading bot modules
 from config import settings
+from importlib import reload
+import config
 from strategies.sma_atr import SMAATRStrategy
 from risk.atr_sizing import RiskParams, position_size_by_risk, get_pip_value_per_unit
 from backtest.backtest import run_backtest, plot_backtest
@@ -83,6 +85,15 @@ if 'equity_history' not in st.session_state:
     st.session_state.equity_history = []
 if 'trading_mode' not in st.session_state:
     st.session_state.trading_mode = "paper"  # paper or live
+
+def reload_settings():
+    """Reload settings from .env file"""
+    try:
+        reload(config)
+        return config.settings
+    except Exception as e:
+        st.error(f"Failed to reload settings: {e}")
+        return settings
 
 def update_env_file(trading_mode: str):
     """Update .env file with trading mode settings"""
@@ -256,8 +267,9 @@ def home_tab():
         # API Configuration Status
         st.subheader("🔑 API Configuration")
         
+        # Check credentials for the selected broker
         if broker_key == "oanda":
-            if settings.OANDA_ACCESS_TOKEN and settings.OANDA_ACCOUNT_ID:
+            if settings.OANDA_ACCESS_TOKEN and settings.OANDA_ACCESS_TOKEN != "your_oanda_access_token_here" and settings.OANDA_ACCOUNT_ID and settings.OANDA_ACCOUNT_ID != "your_oanda_account_id_here":
                 st.success("✅ OANDA credentials configured")
             else:
                 st.error("❌ OANDA credentials missing")
@@ -275,7 +287,7 @@ def home_tab():
                     """)
                 
         elif broker_key == "ccxt":
-            if settings.CCXT_API_KEY and settings.CCXT_SECRET:
+            if settings.CCXT_API_KEY and settings.CCXT_API_KEY != "your_ccxt_api_key_here" and settings.CCXT_SECRET and settings.CCXT_SECRET != "your_ccxt_secret_here":
                 st.success("✅ CCXT credentials configured")
             else:
                 st.error("❌ CCXT credentials missing")
@@ -295,7 +307,7 @@ def home_tab():
                     """)
                 
         elif broker_key == "alpaca":
-            if settings.ALPACA_API_KEY and settings.ALPACA_SECRET_KEY:
+            if settings.ALPACA_API_KEY and settings.ALPACA_API_KEY != "your_alpaca_api_key_here" and settings.ALPACA_SECRET_KEY and settings.ALPACA_SECRET_KEY != "your_alpaca_secret_key_here":
                 st.success("✅ Alpaca credentials configured")
             else:
                 st.error("❌ Alpaca credentials missing")
@@ -722,6 +734,10 @@ def logs_tab():
 
 def main():
     """Main dashboard function"""
+    # Reload settings to get latest .env values
+    global settings
+    settings = reload_settings()
+    
     # Header with trading mode indicator
     mode_emoji = "📝" if st.session_state.trading_mode == "paper" else "💰"
     mode_text = "Paper Trading" if st.session_state.trading_mode == "paper" else "Live Trading"
