@@ -482,8 +482,35 @@ def backtest_tab():
             else:
                 default_symbol = "EURUSD=X"
                 
-            symbol = st.text_input("Symbol:", value=default_symbol, 
-                                  help="Examples: EURUSD=X, BTC-USD, AAPL")
+            # Symbol input with suggestions based on broker
+            if broker_key == "alpaca":
+                symbol_options = ["AAPL", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NVDA", "NFLX", "CUSTOM"]
+                symbol_choice = st.selectbox("Symbol:", options=symbol_options, help="Select a popular stock symbol")
+                if symbol_choice == "CUSTOM":
+                    symbol = st.text_input("Custom Symbol:", value="AAPL", help="Enter any stock symbol")
+                else:
+                    symbol = symbol_choice
+            elif broker_key == "oanda":
+                symbol_options = ["EUR_USD", "GBP_USD", "USD_JPY", "USD_CHF", "AUD_USD", "USD_CAD", "CUSTOM"]
+                symbol_choice = st.selectbox("Symbol:", options=symbol_options, help="Select a popular forex pair")
+                if symbol_choice == "CUSTOM":
+                    symbol = st.text_input("Custom Symbol:", value="EUR_USD", help="Enter any forex pair (e.g., EUR_USD)")
+                else:
+                    symbol = symbol_choice
+            elif broker_key == "ccxt":
+                symbol_options = ["BTC-USD", "ETH-USD", "ADA-USD", "SOL-USD", "DOGE-USD", "MATIC-USD", "CUSTOM"]
+                symbol_choice = st.selectbox("Symbol:", options=symbol_options, help="Select a popular crypto symbol")
+                if symbol_choice == "CUSTOM":
+                    symbol = st.text_input("Custom Symbol:", value="BTC-USD", help="Enter any crypto symbol (e.g., BTC-USD)")
+                else:
+                    symbol = symbol_choice
+            else:  # yahoo
+                symbol_options = ["AAPL", "MSFT", "BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X", "CUSTOM"]
+                symbol_choice = st.selectbox("Symbol:", options=symbol_options, help="Select a popular symbol")
+                if symbol_choice == "CUSTOM":
+                    symbol = st.text_input("Custom Symbol:", value="AAPL", help="Enter any symbol")
+                else:
+                    symbol = symbol_choice
         
         # Period and interval
         col_a, col_b = st.columns(2)
@@ -550,24 +577,35 @@ def backtest_tab():
                         **Common Solutions:**
                         
                         1. **Try a different symbol format:**
-                           - Forex: `EURUSD=X` or `EUR_USD`
-                           - Crypto: `BTC-USD` or `BTC/USDT`
-                           - Stocks: `AAPL` or `MSFT`
+                           - **Forex**: `EURUSD=X`, `EUR_USD`, `GBPUSD=X`
+                           - **Crypto**: `BTC-USD`, `ETH-USD`, `ADA-USD` (NOT BTC/USDT)
+                           - **Stocks**: `AAPL`, `MSFT`, `TSLA`, `GOOGL`
                         
                         2. **Try a shorter time period:**
                            - Use `6mo` instead of `1y`
                            - Use `3mo` instead of `6mo`
+                           - Use `1mo` for very recent data
                         
                         3. **Try a different interval:**
                            - Use `1d` instead of `1h`
                            - Use `1h` instead of `1m`
+                           - Use `1w` for longer-term analysis
                         
                         4. **Check if the symbol exists:**
                            - Verify the symbol is correct
-                           - Try a well-known symbol like `AAPL` or `EURUSD=X`
+                           - Try a well-known symbol like `AAPL` or `BTC-USD`
+                           - Check if the asset is still trading
                         
                         5. **Try a different broker:**
-                           - Switch between Yahoo Finance, OANDA, CCXT, or Alpaca
+                           - **Yahoo Finance**: Works for most symbols
+                           - **OANDA**: Best for forex (EUR_USD, GBP_USD)
+                           - **CCXT**: Best for crypto (BTC-USD, ETH-USD)
+                           - **Alpaca**: Best for stocks (AAPL, MSFT)
+                        
+                        6. **Popular working symbols:**
+                           - **Stocks**: `AAPL`, `MSFT`, `TSLA`, `GOOGL`, `AMZN`
+                           - **Crypto**: `BTC-USD`, `ETH-USD`, `ADA-USD`, `SOL-USD`
+                           - **Forex**: `EURUSD=X`, `GBPUSD=X`, `USDJPY=X`
                         """)
     
     with col2:
