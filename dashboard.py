@@ -81,29 +81,84 @@ if 'positions' not in st.session_state:
     st.session_state.positions = {}
 if 'equity_history' not in st.session_state:
     st.session_state.equity_history = []
+if 'trading_mode' not in st.session_state:
+    st.session_state.trading_mode = "paper"  # paper or live
 
-def get_broker_client(broker: str):
+def update_env_file(trading_mode: str):
+    """Update .env file with trading mode settings"""
+    env_file = ".env"
+    
+    # Read current .env file
+    env_vars = {}
+    if os.path.exists(env_file):
+        with open(env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    env_vars[key] = value
+    
+    # Update trading mode settings
+    if trading_mode == "live":
+        env_vars['ALPACA_PAPER'] = 'false'
+        env_vars['ALPACA_BASE_URL'] = 'https://api.alpaca.markets'
+        env_vars['OANDA_ENVIRONMENT'] = 'live'
+        env_vars['OANDA_API_URL'] = 'https://api-fxtrade.oanda.com'
+        env_vars['OANDA_STREAM_URL'] = 'https://stream-fxtrade.oanda.com'
+        env_vars['CCXT_SANDBOX'] = 'false'
+    else:  # paper
+        env_vars['ALPACA_PAPER'] = 'true'
+        env_vars['ALPACA_BASE_URL'] = 'https://paper-api.alpaca.markets'
+        env_vars['OANDA_ENVIRONMENT'] = 'practice'
+        env_vars['OANDA_API_URL'] = 'https://api-fxpractice.oanda.com'
+        env_vars['OANDA_STREAM_URL'] = 'https://stream-fxpractice.oanda.com'
+        env_vars['CCXT_SANDBOX'] = 'true'
+    
+    # Write updated .env file
+    with open(env_file, 'w') as f:
+        for key, value in env_vars.items():
+            f.write(f"{key}={value}\n")
+    
+    # Reload settings
+    from importlib import reload
+    import config
+    reload(config)
+    global settings
+    settings = config.settings
+
+def get_broker_client(broker: str, trading_mode: str = None):
     """Get broker client instance"""
     try:
+        # Use session state trading mode if not provided
+        if trading_mode is None:
+            trading_mode = st.session_state.trading_mode
+            
         if broker == 'ccxt':
+            # Determine sandbox mode based on trading mode
+            sandbox = trading_mode == "paper"
             return CCXTClient(
                 exchange=settings.CCXT_EXCHANGE,
                 api_key=settings.CCXT_API_KEY,
                 secret=settings.CCXT_SECRET,
-                sandbox=settings.CCXT_SANDBOX
+                sandbox=sandbox
             )
         elif broker == 'oanda':
+            # Determine environment based on trading mode
+            environment = "practice" if trading_mode == "paper" else "live"
             return OANDAClient(
                 access_token=settings.OANDA_ACCESS_TOKEN,
                 account_id=settings.OANDA_ACCOUNT_ID,
-                environment=settings.OANDA_ENVIRONMENT
+                environment=environment
             )
         elif broker == 'alpaca':
+            # Determine paper mode and base URL based on trading mode
+            paper = trading_mode == "paper"
+            base_url = "https://paper-api.alpaca.markets" if paper else "https://api.alpaca.markets"
             return AlpacaClient(
                 api_key=settings.ALPACA_API_KEY,
                 secret_key=settings.ALPACA_SECRET_KEY,
-                base_url=settings.ALPACA_BASE_URL,
-                paper=settings.ALPACA_PAPER
+                base_url=base_url,
+                paper=paper
             )
     except Exception as e:
         st.error(f"Failed to initialize {broker} client: {e}")
@@ -265,7 +320,7 @@ def home_tab():
         # Connect button
         if st.button("🔌 Connect to Broker", type="primary"):
             with st.spinner(f"Connecting to {selected_broker}..."):
-                client = get_broker_client(broker_key)
+                client = get_broker_client(broker_key, st.session_state.trading_mode)
                 if client and client.connect():
                     st.session_state.broker_client = client
                     st.session_state.current_broker = broker_key
@@ -275,8 +330,8 @@ def home_tab():
                         st.session_state.selected_instrument = selected_pair
                     elif broker_key == "alpaca":
                         st.session_state.selected_instrument = selected_symbol
-                    add_log(f"Connected to {selected_broker}")
-                    st.success(f"✅ Connected to {selected_broker}")
+                    add_log(f"Connected to {selected_broker} ({st.session_state.trading_mode} mode)")
+                    st.success(f"✅ Connected to {selected_broker} ({st.session_state.trading_mode} mode)")
                 else:
                     st.error(f"❌ Failed to connect to {selected_broker}")
                     add_log(f"Failed to connect to {selected_broker}", "ERROR")
@@ -623,12 +678,49 @@ def logs_tab():
 
 def main():
     """Main dashboard function"""
-    # Header
-    st.markdown('<div class="main-header">🚀 Universal Trading Bot Dashboard</div>', unsafe_allow_html=True)
+    # Header with trading mode indicator
+    mode_emoji = "📝" if st.session_state.trading_mode == "paper" else "💰"
+    mode_text = "Paper Trading" if st.session_state.trading_mode == "paper" else "Live Trading"
+    mode_color = "#28a745" if st.session_state.trading_mode == "paper" else "#dc3545"
+    
+    st.markdown(f'''
+    <div class="main-header">
+        🚀 Universal Trading Bot Dashboard
+        <br>
+        <span style="font-size: 1.2rem; color: {mode_color};">
+            {mode_emoji} {mode_text}
+        </span>
+    </div>
+    ''', unsafe_allow_html=True)
     
     # Sidebar
     with st.sidebar:
         st.image("https://via.placeholder.com/200x100/1f77b4/ffffff?text=Trading+Bot", width=200)
+        st.markdown("---")
+        
+        # Trading Mode Toggle
+        st.subheader("🎯 Trading Mode")
+        current_mode = st.session_state.trading_mode
+        
+        if current_mode == "paper":
+            st.success("📝 Paper Trading")
+            if st.button("🔄 Switch to Live Trading", type="secondary", use_container_width=True):
+                st.session_state.trading_mode = "live"
+                update_env_file("live")
+                st.session_state.broker_client = None  # Disconnect to force reconnection
+                add_log("Switched to LIVE trading mode")
+                st.success("✅ Switched to Live Trading!")
+                st.rerun()
+        else:
+            st.error("💰 Live Trading")
+            if st.button("🔄 Switch to Paper Trading", type="primary", use_container_width=True):
+                st.session_state.trading_mode = "paper"
+                update_env_file("paper")
+                st.session_state.broker_client = None  # Disconnect to force reconnection
+                add_log("Switched to PAPER trading mode")
+                st.success("✅ Switched to Paper Trading!")
+                st.rerun()
+        
         st.markdown("---")
         
         # Current status
