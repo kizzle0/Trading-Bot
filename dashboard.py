@@ -337,6 +337,17 @@ def home_tab():
         st.markdown("---")
         st.markdown("📖 **Need help?** Check the [Broker Setup Guide](BROKER_SETUP.md) for detailed instructions.")
         
+        # Debug information
+        st.markdown("---")
+        st.markdown("### 🔍 **Debug Information**")
+        with st.expander("Show Configuration Status"):
+            st.write(f"**Configuration Source:** {'Secrets' if 'config_secrets' in str(type(settings)) else 'Environment'}")
+            st.write(f"**Broker:** {settings.BROKER}")
+            st.write(f"**Alpaca API Key:** {settings.ALPACA_API_KEY[:10] + '...' if settings.ALPACA_API_KEY else 'Not set'}")
+            st.write(f"**Alpaca Secret Key:** {settings.ALPACA_SECRET_KEY[:10] + '...' if settings.ALPACA_SECRET_KEY else 'Not set'}")
+            st.write(f"**OANDA Token:** {settings.OANDA_ACCESS_TOKEN[:10] + '...' if settings.OANDA_ACCESS_TOKEN else 'Not set'}")
+            st.write(f"**CCXT API Key:** {settings.CCXT_API_KEY[:10] + '...' if settings.CCXT_API_KEY else 'Not set'}")
+        
         # Streamlit Cloud setup info
         st.markdown("---")
         st.markdown("### 🌐 **For Streamlit Cloud Users**")
@@ -345,6 +356,8 @@ def home_tab():
         1. Go to your app's settings in Streamlit Cloud
         2. Add your API credentials to the **Secrets** section
         3. Use the configuration from [Streamlit Cloud Setup Guide](STREAMLIT_CLOUD_SETUP.md)
+        4. **Wait 1-2 minutes** for changes to propagate
+        5. **Refresh the page** to see updated credentials
         """)
         
         # Connect button
