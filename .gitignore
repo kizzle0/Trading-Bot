@@ -54,4 +54,6 @@ data/
 
 # Temporary files
 *.tmp
-*.temp
+
+# Streamlit
+.streamlit/secrets.toml
