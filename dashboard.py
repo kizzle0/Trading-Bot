@@ -17,7 +17,15 @@ import os
 from typing import Dict, Any, Optional
 
 # Import our trading bot modules
-from config import settings
+try:
+    # Try secrets-based config first (for Streamlit Cloud)
+    from config_secrets import settings
+    print("Using secrets-based configuration")
+except ImportError:
+    # Fallback to .env-based config (for local development)
+    from config import settings
+    print("Using .env-based configuration")
+
 from importlib import reload
 import config
 from strategies.sma_atr import SMAATRStrategy
@@ -328,6 +336,16 @@ def home_tab():
         # Quick setup link
         st.markdown("---")
         st.markdown("📖 **Need help?** Check the [Broker Setup Guide](BROKER_SETUP.md) for detailed instructions.")
+        
+        # Streamlit Cloud setup info
+        st.markdown("---")
+        st.markdown("### 🌐 **For Streamlit Cloud Users**")
+        st.info("""
+        **If you're using the published Streamlit app:**
+        1. Go to your app's settings in Streamlit Cloud
+        2. Add your API credentials to the **Secrets** section
+        3. Use the configuration from [Streamlit Cloud Setup Guide](STREAMLIT_CLOUD_SETUP.md)
+        """)
         
         # Connect button
         if st.button("🔌 Connect to Broker", type="primary"):
